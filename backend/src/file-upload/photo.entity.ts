@@ -1,3 +1,4 @@
+import { ApiResponse, ApiResponseProperty } from "@nestjs/swagger";
 import { Folder } from "src/folder/folder.entity";
 import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 

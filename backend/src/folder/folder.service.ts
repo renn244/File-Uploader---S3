@@ -21,7 +21,7 @@ export class FolderService {
         const newFolder = this.folderRepository.create({ name: body.name, user: { id: user_acc?.id} })
         await this.folderRepository.save(newFolder);
 
-        return newFolder
+        return newFolder;
     }
 
     async getFolders(user: UserSession) {
@@ -30,7 +30,7 @@ export class FolderService {
         if(!user_acc) throw new UnauthorizedException();
 
         const folders = await this.folderRepository.find({
-            relations: {user: true },
+            relations: { user: true },
             where: { user: { id: user_acc.id } },
         });
 

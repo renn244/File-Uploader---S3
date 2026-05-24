@@ -1,7 +1,23 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsNumber, IsString } from "class-validator";
 
 export class CreateFileUploadDto {
-    @IsNotEmpty({ message: 'folder must not be empty!' })
+    @IsNotEmpty()
+    @IsNumber()
+    fileSize!: number;
+
+    @IsNotEmpty()
     @IsString()
-    folderId!: string
+    originalName!: string;
+
+    @IsNotEmpty()
+    @IsString()
+    fileType!: string;
+
+    @IsNotEmpty()
+    @IsString()
+    s3Bucket!: string;
+
+    @IsNotEmpty()
+    @IsString()
+    s3Key!: string;
 }

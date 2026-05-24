@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse } from '@nestjs/swagger';
 import { ClerkAuthGuard } from 'src/common/guard/auth.guard';
@@ -7,6 +7,7 @@ import { FileUploadService } from './file-upload.service';
 import { PhotoOwnershipGuard } from './guard/PhotoOwneship.guard';
 import { GetPhotosResponse } from './response/getPhotos.response';
 import { PhotoResponse } from './response/photo.response';
+import { CreateFileUploadDto } from './dto/create-file-upload.dto';
 
 @Controller('file-upload')
 @UseGuards(ClerkAuthGuard)
@@ -18,9 +19,22 @@ export class FileUploadController {
     @Post(':folderId')
     @ApiCreatedResponse({ type: PhotoResponse })
     @UseGuards(FolderOwnershipGuard)
-    @UseInterceptors(FileInterceptor('photo'))
-    async uploadPhoto(@UploadedFile() file: Express.Multer.File, @Param('folderId') folderId: string) {
-        return this.fileUploadService.createPhoto(file, folderId);
+    async uploadPhoto(@Body() body: CreateFileUploadDto, @Param('folderId') folderId: string) {
+        return this.fileUploadService.createPhoto(body, folderId);
+    }
+
+    @UseGuards(FolderOwnershipGuard)
+    @ApiOkResponse({ description: 'Pre-signed URL generated successfully' })
+    @Get('upload-url/:folderId')
+    async getUploadUrl(@Param('folderId') folderId: string, @Query() query: { contentType: string, fileName: string }) {
+        return this.fileUploadService.getUploadUrl(query.contentType, query.fileName, folderId);
+    }
+
+    @UseGuards(FolderOwnershipGuard)
+    @ApiOkResponse({ type: GetPhotosResponse })
+    @Get('folder/:folderId')
+    async getPhotosByFolder(@Param('folderId') folderId: string) {
+        return this.fileUploadService.getPhotos(folderId);
     }
 
     @UseGuards(FolderOwnershipGuard)

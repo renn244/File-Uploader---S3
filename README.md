@@ -91,6 +91,41 @@ Then create the bucket if needed:
 aws --endpoint-url=http://localhost:4566 s3 mb s3://file-uploader-bucket
 ```
 
+## AWS S3 bucket configuration
+
+If you are using a real AWS S3 bucket (instead of LocalStack), these settings match the current implementation (private bucket + presigned access).
+
+### Block Public Access
+
+Enable all options:
+- Block public ACLs
+- Ignore public ACLs
+- Block public bucket policies
+- Restrict public access
+
+This results in no public access to the bucket.
+
+### Object Ownership
+
+- Bucket owner enforced
+
+This disables ACLs and simplifies access control.
+
+### CORS configuration
+
+```json
+{
+	"CORSRules": [
+		{
+			"AllowedHeaders": ["*"],
+			"AllowedMethods": ["GET", "PUT"],
+			"AllowedOrigins": ["*"],
+			"ExposeHeaders": []
+		}
+	]
+}
+```
+
 ### Backend install and run
 
 ```bash
@@ -112,8 +147,9 @@ npm run dev
 ### S3 integration
 The backend S3 service uses:
 - `S3Client` from `@aws-sdk/client-s3`
-- `PutObjectCommand` for file upload
+- `PutObjectCommand` for server-side uploads (when used)
 - `DeleteObjectCommand` for cleanup
+- Presigned URLs via `getSignedUrl` from `@aws-sdk/s3-request-presigner`
 - `forcePathStyle: true` to support LocalStack URL style
 
 The upload flow is implemented in `backend/src/file-upload/s3.service.ts`.
@@ -164,25 +200,9 @@ The frontend uses Axios and custom hooks under `frontend/src/hook/`:
 
 ## Possible improvements
 
-### AWS / S3 improvements
-- Implement S3 presigned URLs for both upload and read operations
-- Use private S3 bucket access and generate presigned `GET` URLs for downloads
-- Support direct browser upload to S3 with presigned `PUT` or multipart upload
-- Add support for S3 object expiration lifecycle rules
-- Generate presigned POST policies for browser-based multipart uploads
-
-### Security and UX improvements
-- Make the S3 bucket private and avoid public object URLs
-- Return presigned download URLs instead of raw S3 keys
-- Add upload progress indicators and retry handling
-- Add server-side file validation for content type and file size
-- Introduce role-based access control or shared folder permissions
-
-### Infrastructure and deployment
-- Deploy backend to AWS Lambda / ECS and frontend to Vercel / Netlify
-- Replace LocalStack with real AWS resources in a staging environment
-- Add database migrations and seed data management
-- Add observability: logs, metrics, and S3 request tracing
+- Add multipart uploads for large files
+- Add S3 lifecycle rules for expiration/cleanup
+- Add stronger server-side validation (file type/size) and upload retry/progress UX
 
 ## Notes
 - This README covers the local development stack only.

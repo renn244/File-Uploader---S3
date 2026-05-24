@@ -1,17 +1,19 @@
 import { Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 
+import { useUploadPhotoMutation } from '#/hook/fileUpload.hook';
+import axiosClient from '#/lib/axiosClient';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useUploadPhotoMutation } from '#/hook/fileUpload.hook';
+import { useAuth } from '@clerk/clerk-react';
 
 type UploadPhotoDialogProps = {
   folderId: string;
@@ -23,12 +25,29 @@ export function UploadPhotoDialog({ folderId }: UploadPhotoDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
+  const [s3Info, setS3Info] = useState<{ bucket: string; key: string } | null>(null);
 
   const { mutateAsync: uploadPhoto, isPending: isUploading } = useUploadPhotoMutation(folderId);
 
-  function handleFile(selectedFiles: FileList | null) {
-    if (!selectedFiles || selectedFiles.length === 0) return;
+    const { getToken } = useAuth();
 
+  async function handleFile(selectedFiles: FileList | null) {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    const token = await getToken();
+    const response = await axiosClient.get(`/file-upload/upload-url/${folderId}`, {
+      params: {
+        contentType: selectedFiles[0].type,
+        fileName: selectedFiles[0].name
+      },
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    setUploadUrl(response.data.url);
+    setS3Info({ bucket: response.data.bucket, key: response.data.key });
     setFile(selectedFiles[0]);
   }
 
@@ -117,8 +136,17 @@ export function UploadPhotoDialog({ folderId }: UploadPhotoDialogProps) {
             <Button onClick={() => setIsOpen(false)} disabled={isUploading} variant="outline">
                 Cancel
             </Button>
-            <Button onClick={() => uploadPhoto(file!, { onSuccess: () => setIsOpen(false) })} disabled={!file || isUploading}>
-                Upload
+            <Button 
+            onClick={() => 
+              uploadPhoto({
+                file: file!,
+                s3Info: s3Info,
+                uploadUrl: uploadUrl
+              }, { onSuccess: () => setIsOpen(false) })
+            } 
+            disabled={!file || isUploading}
+            >
+              Upload
             </Button>
           </div>
         </div>

@@ -1,7 +1,8 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "crypto";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 @Injectable()
 export class S3Service {
@@ -37,6 +38,36 @@ export class S3Service {
         )
 
         return { bucket: this.bucketName, key: s3Key }
+    }
+
+    async getUploadUrl(contentType: string, fileName: string, folderId: string) {
+        const fileExtension = contentType.split('/')[1];
+
+        const s3Key = `folders/${folderId}/${randomUUID()}.${fileExtension}`
+
+        const command = new PutObjectCommand({
+            Bucket: this.bucketName,
+            Key: s3Key,
+            ContentType: contentType
+        })
+
+        const preSignedUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
+
+        return {
+            url: preSignedUrl,
+            bucket: this.bucketName,
+            key: s3Key,
+        }
+    }
+
+    async getDownloadUrl(key: string, bucket: string = this.bucketName) {
+        const command = new GetObjectCommand({
+            Bucket: bucket,
+            Key: key
+        })
+
+        const preSignedUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
+        return { url: preSignedUrl };
     }
 
     async deleteFile(key: string, bucket: string = this.bucketName) {

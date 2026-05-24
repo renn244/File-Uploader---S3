@@ -3,6 +3,7 @@ import { FolderService } from 'src/folder/folder.service';
 import { Repository } from 'typeorm';
 import { Photo } from './photo.entity';
 import { S3Service } from './s3.service';
+import { CreateFileUploadDto } from './dto/create-file-upload.dto';
 
 @Injectable()
 export class FileUploadService {
@@ -12,34 +13,31 @@ export class FileUploadService {
         private readonly s3Service: S3Service
     ) {}
 
-    async createPhoto(file: Express.Multer.File, folderId: string) {
-        const { originalname, size, mimetype } = file;
+    async createPhoto(body: CreateFileUploadDto, folderId: string) {
+        const { originalName, fileSize, fileType, s3Bucket, s3Key } = body;
         const folder = await this.folderService.getFolderById(folderId);
     
         if(!folder) {
             throw new NotFoundException('folder does not exist!')
         }
-
-        const result = await this.s3Service.uploadFile(file, folderId);
         
-        try {
-            const newPhoto = this.photoRepository.create({
-                fileName: result.key.split('/').pop(),
-                folder: { id: folderId },
-                originalName: originalname,
-                fileSize: size,
-                fileType: mimetype,
-                s3Bucket: result.bucket,
-                s3Key: result.key,
-            })
-            await this.photoRepository.save(newPhoto);
+        const newPhoto = this.photoRepository.create({
+            fileName: s3Key.split('/').pop(),
+            folder: { id: folderId },
+            originalName: originalName,
+            fileSize: fileSize,
+            fileType: fileType,
+            s3Bucket: s3Bucket,
+            s3Key: s3Key,
+        })
+        await this.photoRepository.save(newPhoto);
 
-            return newPhoto
-        } catch(error) {
-            // to not have an orphan file in s3 bucket
-            await this.s3Service.deleteFile(result.key, result.bucket);
-            throw error;
-        }
+        return newPhoto
+    }
+
+    // make sure we have query dto to validate the content type and file name
+    async getUploadUrl(contentType: string, fileName: string, folderId: string) {
+        return this.s3Service.getUploadUrl(contentType, fileName, folderId);
     }
 
     async getPhotos(folderId: string) {
@@ -48,9 +46,19 @@ export class FileUploadService {
             where: { folder: { id: folderId } }
         })
 
+        const photoWithDownloadUrl = await Promise.all(
+            photos.map(async (photo) => {
+                const downloadUrl = await this.s3Service.getDownloadUrl(photo.s3Key, photo.s3Bucket);
+                return {
+                    ...photo,
+                    downloadUrl
+                }
+            })
+        )
+
         return {
             ...folder,
-            photos: photos || []
+            photos: photoWithDownloadUrl || []
         }
     }
 

@@ -1,7 +1,32 @@
 # Local .terraform directories
 .terraform/
 .terraform.lock.hcl
+*.tfstate.lock.info
 
 # State files
 *.tfstate
 *.tfstate.backup
+
+# Dependencies
+node_modules/
+
+# Compiled lambdas
+*.js
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# AWS packages
+*.zip

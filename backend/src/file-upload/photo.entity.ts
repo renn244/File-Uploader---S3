@@ -1,4 +1,3 @@
-import { ApiResponse, ApiResponseProperty } from "@nestjs/swagger";
 import { Folder } from "src/folder/folder.entity";
 import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
@@ -29,6 +28,12 @@ export class Photo {
 
     @Column({ type: 'text' })
     s3Key!: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    thumbnailS3Bucket?: string;
+
+    @Column({ type: 'text', nullable: true })
+    thumbnailS3Key?: string;
 
     @CreateDateColumn({ type: 'timestamptz' })
     uploadedAt!: Date;

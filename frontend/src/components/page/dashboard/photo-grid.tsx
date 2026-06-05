@@ -28,7 +28,14 @@ function PhotoCard({ photo }: { photo: any }) {
         <>
             <Card key={photo.id} className="overflow-hidden bg-secondary hover:shadow-md transition-shadow">
                 <div className={`h-32 flex items-center justify-center relative group`}>
-                    <img className='h-32' src={photo.downloadUrl.url} />
+                    <img 
+                    className='h-32' 
+                    src={photo.thumbnailUrl?.url || photo.downloadUrl.url} 
+                    onError={(e) => {
+                        // Fallback to original photo if thumbnail fails to load
+                        (e.target as HTMLImageElement).src = photo.downloadUrl.url;
+                    }}
+                    />
                     <button 
                     onClick={() => setIsDeleteOpen(true)}
                     className="absolute top-2 right-2 p-1 bg-foreground/10 rounded opacity-0 group-hover:opacity-100 transition-opacity">

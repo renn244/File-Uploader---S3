@@ -1,0 +1,17 @@
+{
+  "name": "image_resizer",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "package": "powershell -Command \"Compress-Archive -Path index.js, package.json, node_modules -DestinationPath ../lambda_function.zip -Force\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1061.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
+  }
+}

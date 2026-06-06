@@ -1,156 +1,210 @@
-import { Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
-
-import { useUploadPhotoMutation } from '#/hook/fileUpload.hook';
-import axiosClient from '#/lib/axiosClient';
-import { Button } from '@/components/ui/button';
+import { useAuth } from "@clerk/clerk-react";
+import { LoaderCircle, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { getUploadUrl, useUploadPhotoMutation } from "#/hook/fileUpload.hook";
+import { formatBytes } from "#/lib/format";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { useAuth } from '@clerk/clerk-react';
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 type UploadPhotoDialogProps = {
-  folderId: string;
-}
+	folderId: string;
+};
 
 export function UploadPhotoDialog({ folderId }: UploadPhotoDialogProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+	const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
-  const [s3Info, setS3Info] = useState<{ bucket: string; key: string } | null>(null);
+	const [isOpen, setIsOpen] = useState(false);
+	const [isDragging, setIsDragging] = useState(false);
+	const [isPreparing, setIsPreparing] = useState(false);
+	const [file, setFile] = useState<File | null>(null);
+	const [uploadUrl, setUploadUrl] = useState<string | null>(null);
+	const [s3Info, setS3Info] = useState<{ bucket: string; key: string } | null>(
+		null,
+	);
 
-  const { mutateAsync: uploadPhoto, isPending: isUploading } = useUploadPhotoMutation(folderId);
+	const { mutateAsync: uploadPhoto, isPending: isUploading } =
+		useUploadPhotoMutation(folderId);
 
-    const { getToken } = useAuth();
+	const { getToken } = useAuth();
 
-  async function handleFile(selectedFiles: FileList | null) {
-    if (!selectedFiles || selectedFiles.length === 0) return;
-    
-    const token = await getToken();
-    const response = await axiosClient.get(`/file-upload/upload-url/${folderId}`, {
-      params: {
-        contentType: selectedFiles[0].type,
-        fileName: selectedFiles[0].name
-      },
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
+	function resetDialogState() {
+		setIsDragging(false);
+		setIsPreparing(false);
+		setFile(null);
+		setUploadUrl(null);
+		setS3Info(null);
 
-    setUploadUrl(response.data.url);
-    setS3Info({ bucket: response.data.bucket, key: response.data.key });
-    setFile(selectedFiles[0]);
-  }
+		if (inputRef.current) {
+			inputRef.current.value = "";
+		}
+	}
 
-  function handleDragOver(e: React.DragEvent<HTMLLabelElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }
+	async function handleFile(selectedFiles: FileList | null) {
+		if (!selectedFiles || selectedFiles.length === 0) return;
 
-  function handleDragLeave(e: React.DragEvent<HTMLLabelElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }
+		const nextFile = selectedFiles[0];
 
-  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
+		setIsPreparing(true);
 
-    handleFile(e.dataTransfer.files);
-  }
+		try {
+			const uploadTarget = await getUploadUrl(getToken, folderId, nextFile);
+			setFile(nextFile);
+			setUploadUrl(uploadTarget.url);
+			setS3Info({ bucket: uploadTarget.bucket, key: uploadTarget.key });
+		} catch {
+			setFile(null);
+			setUploadUrl(null);
+			setS3Info(null);
+			toast.error("Failed to prepare secure upload");
+		} finally {
+			setIsPreparing(false);
+		}
+	}
 
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button
-        className="gap-2">
-          <Upload className="w-4 h-4" />
-          Upload Photo
-        </Button>
-      </DialogTrigger>
+	function handleDragOver(e: React.DragEvent<HTMLLabelElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(true);
+	}
 
-      <DialogContent className="sm:min-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Upload Photo</DialogTitle>
-          <DialogDescription>
-            Drag and drop your photo or click to select.
-          </DialogDescription>
-        </DialogHeader>
+	function handleDragLeave(e: React.DragEvent<HTMLLabelElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(false);
+	}
 
-        <div className="space-y-4 py-4">
-          <Input
-          ref={inputRef}
-          id="photo-upload"
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files)}
-          />
+	function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(false);
 
-          <label
-            htmlFor="photo-upload"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`
-              border-2 border-dashed rounded-lg p-8
+		void handleFile(e.dataTransfer.files);
+	}
+
+	return (
+		<Dialog
+			open={isOpen}
+			onOpenChange={(open) => {
+				setIsOpen(open);
+
+				if (!open) {
+					resetDialogState();
+				}
+			}}
+		>
+			<DialogTrigger asChild>
+				<Button className="gap-2">
+					<Upload className="w-4 h-4" />
+					Upload File
+				</Button>
+			</DialogTrigger>
+
+			<DialogContent className="sm:min-w-[425px]">
+				<DialogHeader>
+					<DialogTitle>Upload File</DialogTitle>
+					<DialogDescription>
+						Drag and drop a file or browse your device to create a secure
+						upload.
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="space-y-4 py-4">
+					<Input
+						ref={inputRef}
+						id="photo-upload"
+						type="file"
+						className="hidden"
+						onChange={(e) => {
+							void handleFile(e.target.files);
+						}}
+					/>
+
+					<label
+						htmlFor="photo-upload"
+						onDragOver={handleDragOver}
+						onDragLeave={handleDragLeave}
+						onDrop={handleDrop}
+						className={`
+              rounded-3xl border-2 border-dashed p-8
               flex flex-col items-center justify-center
               text-center cursor-pointer transition-colors
               ${
-                isDragging
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border hover:bg-secondary/50'
-              }
+								isDragging
+									? "border-[color:var(--lagoon-deep)] bg-[color:var(--lagoon)]/10"
+									: "border-white/45 bg-white/50 hover:bg-white/70"
+							}
             `}
-          >
-            <Upload className="w-8 h-8 text-accent mb-2" />
+					>
+						<div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--lagoon)]/12 text-[color:var(--lagoon-deep)]">
+							{isPreparing ? (
+								<LoaderCircle className="h-6 w-6 animate-spin" />
+							) : (
+								<Upload className="h-6 w-6" />
+							)}
+						</div>
 
-            <p className="font-medium text-foreground mb-1">
-              Drag photo here
-            </p>
+						<p className="mb-1 font-medium text-foreground">
+							{isPreparing ? "Preparing secure upload" : "Drag your file here"}
+						</p>
 
-            <p className="text-sm text-foreground/60">
-              or click to browse
-            </p>
-          </label>
+						<p className="text-sm text-foreground/60">
+							{isPreparing
+								? "Requesting an upload slot..."
+								: "or click to browse"}
+						</p>
+					</label>
 
-          {file && (
-            <div className="text-sm text-muted-foreground">
-              Selected: {file.name}
-            </div>
-          )}
+					{file && (
+						<div className="rounded-2xl border border-white/40 bg-white/55 p-4 text-sm text-foreground/75">
+							<p className="font-medium text-foreground">{file.name}</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								{formatBytes(file.size)} {file.type ? `| ${file.type}` : ""}
+							</p>
+						</div>
+					)}
 
-          <div className="flex gap-2 justify-end pt-4">
-            <Button onClick={() => setIsOpen(false)} disabled={isUploading} variant="outline">
-                Cancel
-            </Button>
-            <Button 
-            onClick={() => 
-              uploadPhoto({
-                file: file!,
-                s3Info: s3Info,
-                uploadUrl: uploadUrl
-              }, { onSuccess: () => setIsOpen(false) })
-            } 
-            disabled={!file || isUploading}
-            >
-              Upload
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+					<div className="flex gap-2 justify-end pt-4">
+						<Button
+							onClick={() => setIsOpen(false)}
+							disabled={isUploading || isPreparing}
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={() =>
+								uploadPhoto(
+									{
+										file,
+										s3Info,
+										uploadUrl,
+									},
+									{
+										onSuccess: () => {
+											resetDialogState();
+											setIsOpen(false);
+										},
+									},
+								)
+							}
+							disabled={
+								!file || isUploading || isPreparing || !uploadUrl || !s3Info
+							}
+						>
+							{isUploading ? "Uploading..." : "Upload file"}
+						</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
 }

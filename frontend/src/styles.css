@@ -183,8 +183,58 @@ body,
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+body {
     background-color: var(--background);
     color: var(--foreground);
+    font-feature-settings: "ss01" 1, "cv01" 1;
+    background-image:
+      radial-gradient(circle at top, rgba(79, 184, 178, 0.18), transparent 38%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(231, 243, 236, 0.92));
   }
+}
+
+.dashboard-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at top left, rgba(79, 184, 178, 0.22), transparent 26%),
+    radial-gradient(circle at top right, rgba(47, 106, 74, 0.14), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(231, 243, 236, 0.96));
+}
+
+.dashboard-panel {
+  border: 1px solid color-mix(in oklab, var(--line) 70%, white 30%);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.72));
+  box-shadow:
+    0 24px 60px rgba(23, 58, 64, 0.08),
+    inset 0 1px 0 var(--inset-glint);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid var(--chip-line);
+  background: var(--chip-bg);
+  color: var(--kicker);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  padding: 0.55rem 0.85rem;
+  text-transform: uppercase;
+}
+
+.dashboard-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--chip-line);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 0.65rem 0.95rem;
 }

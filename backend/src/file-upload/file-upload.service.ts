@@ -62,17 +62,21 @@ export class FileUploadService {
     }
 
     async getPhotos(folderId: string) {
-        const folder = await this.folderService.getFolderById(folderId);
-        const photos = await this.photoRepository.find({
-            where: { folder: { id: folderId } }
-        })
+        const [folder, photos] = await Promise.all([
+            this.folderService.getFolderById(folderId),
+            this.photoRepository.find({
+                where: { folder: { id: folderId } }
+            })
+        ])
 
         const photoWithDownloadUrl = await Promise.all(
             photos.map(async (photo) => {
-                const downloadUrl = await this.s3Service.getDownloadUrl(photo.s3Key, photo.s3Bucket);
-                const thumbnailUrl = photo.thumbnailS3Key ? 
-                    await this.s3Service.getDownloadUrl(photo.thumbnailS3Key, photo.thumbnailS3Bucket)
-                    : null
+                const [downloadUrl, thumbnailUrl] = await Promise.all([
+                    this.s3Service.getDownloadUrl(photo.s3Key, photo.s3Bucket),
+                    photo.thumbnailS3Key ? 
+                        await this.s3Service.getDownloadUrl(photo.thumbnailS3Key, photo.thumbnailS3Bucket)
+                        : null
+                ])
 
                 return {
                     ...photo,

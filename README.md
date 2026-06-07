@@ -1,210 +1,272 @@
-# File Uploader
+# FileVault
+![Landing page](./public/Landing%20Page.png)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TanStack Router](https://img.shields.io/badge/TanStack_Router-FF6B35?style=for-the-badge&logo=reactrouter&logoColor=white)
+![React Query](https://img.shields.io/badge/TanStack_Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=for-the-badge&logo=amazons3&logoColor=white)
+![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=for-the-badge&logo=awslambda&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white)
+![LocalStack](https://img.shields.io/badge/LocalStack-4E2A84?style=for-the-badge&logoColor=white)
+![Clerk](https://img.shields.io/badge/Clerk-6C47FF?style=for-the-badge&logo=clerk&logoColor=white)
 
-A full-stack AWS learning project built with a local AWS emulation stack, featuring:
-- NestJS backend with AWS SDK v3 for S3 file storage
-- React frontend with TanStack Router, React Query, and Clerk authentication
-- LocalStack-compatible S3 setup for local AWS learning and experimentation
-- PostgreSQL for metadata persistence
+FileVault is a full-stack AWS practice project for uploading, organizing, and browsing photos with authenticated folders, direct-to-S3 uploads, and Lambda-generated thumbnails. It uses a modern React frontend, a NestJS API, PostgreSQL for metadata, and LocalStack plus Terraform for local AWS-style infrastructure.
 
-## What this stack uses
+## What it does
+- Authenticates users with Clerk
+- Creates user-owned folders and photo records
+- Uploads originals directly from the browser to S3 with pre-signed URLs
+- Stores photo metadata in PostgreSQL through NestJS and TypeORM
+- Triggers Lambda on `s3:ObjectCreated:*` to generate `200x200` WebP thumbnails
+- Serves signed download URLs for both original files and thumbnails
+- Provides a cleaner landing page that explains the AWS pipeline visually
+
+## Upload flow
+
+![Upload flow](./public/diagram/Presigned%20URL%20File%20Upload.png)
+
+## Get flow
+
+![Get flow](./public/diagram/Presigned%20URL%20Get%20Files.png)
+
+## Stack
+
+### Frontend
+
+- React 19
+- Vite 8
+- TanStack Router
+- TanStack React Query
+- Clerk React
+- Tailwind CSS 4
+- Biome
+- Axios
 
 ### Backend
+
 - NestJS 11
 - TypeScript
 - TypeORM
 - PostgreSQL
-- Clerk backend auth (`@clerk/backend`)
-- Ngrok
-- AWS SDK v3 (`@aws-sdk/client-s3`)
-- LocalStack-compatible S3 endpoint
-- Multer file uploads handled by NestJS
+- Clerk backend SDK
+- AWS SDK v3 for S3
+- Swagger / Scalar docs at `/docs`
 
-### Frontend
-- React 19
-- Vite
-- TanStack Router
-- TanStack React Query
-- Clerk React auth (`@clerk/clerk-react`)
-- Tailwind CSS 4
-- Biome linting & formatting
-- Axios for backend API calls
+### AWS and local infrastructure
 
-### Learning goals
-- Build an authenticated file upload dashboard
-- Use Clerk auth for secure routes and user session management
-- Upload files to S3 using a local AWS emulator (`LocalStack`)
-- Store upload metadata in PostgreSQL
-- Practice integrating AWS-style file storage with a modern frontend
+- S3 originals bucket
+- S3 thumbnail bucket
+- Lambda image resizer with `sharp`
+- IAM role and bucket notification wiring
+- Terraform for infrastructure definition
+- LocalStack for local AWS emulation
 
-## Architecture overview
+## Repository structure
 
-The project is organized as a monorepo with two main apps:
-- `backend/` — NestJS API, authentication, folder/photo management, S3 upload service
-- `frontend/` — React UI, authenticated dashboard, folder/file workflows
-
-### Data flow
-1. User signs in with Clerk on the frontend.
-2. The frontend calls backend APIs with a Clerk bearer token.
-3. NestJS verifies the token using `@clerk/backend`.
-4. Authenticated users can create folders and upload photos.
-5. Uploaded files are sent to S3 via the backend `S3Service`.
-6. Photo metadata is stored in PostgreSQL and returned to the frontend.
-
-## Local setup
-
-### Prerequisites
-- Node.js
-- npm
-- PostgreSQL running locally
-- LocalStack running locally on `http://localhost:4566`
-- Clerk account for auth keys
-
-### Environment variables
-Update `backend/.env` with values for your local environment. Example values:
-
-```env
-CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-CLERK_WEBHOOK_SECRET=whsec_...
-AWS_REGION=us-southest-1
-AWS_S3_BUCKET=file-uploader-bucket
-AWS_ENDPOINT=http://localhost:4566
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-DATABASE_URL=postgresql://postgres:password@localhost:5432/File-Uploader?schema=public
-FRONTEND_URL=http://localhost:3000
+```text
+backend/         NestJS API, auth, ownership guards, photo and folder logic
+frontend/        React app, landing page, dashboard, Clerk integration
+infrastructure/  Terraform for S3, Lambda, IAM, and bucket notifications
+lambda/          Lambda source for automating simple task on the background like resizing
 ```
 
+## How the system works
+
+### 1. Authentication and ownership
+
+Clerk handles sign-in on the frontend and token verification on the backend. Once authenticated, users can only access folders and photos that belong to them through the ownership guards in the API.
+
+### 2. Direct browser upload to S3
+
+The frontend does not stream the file through NestJS. Instead:
+
+1. The frontend asks the backend for a pre-signed upload URL.
+2. The backend generates that URL with the configured S3 bucket and object key.
+3. The frontend uploads the file directly to S3 using `PUT`.
+4. The frontend then calls the backend again to create the metadata record.
+
+This keeps the API lighter and makes the upload path feel closer to a production AWS setup.
+
+### 3. Lambda thumbnail generation
+
+When the original image lands in the main bucket, S3 triggers the `image_resizer` Lambda. That Lambda reads the original object, resizes it with `sharp`, converts it to WebP, and writes the thumbnail into the thumbnail bucket.
+
+Current thumbnail behavior:
+
+- Size: `200x200`
+- Format: `webp`
+- Quality: `75`
+- Output naming: original key plus `_200x200.webp`
+
+### 4. Metadata and signed read access
+
+Photo and folder metadata lives in PostgreSQL. When the frontend loads a folder, the backend returns metadata plus signed download URLs for both the original file and the thumbnail so the UI can display previews safely without making the buckets public.
+
+## Local development setup
+
+### Prerequisites
+
+- Node.js 20+ recommended
+- npm
+- PostgreSQL running locally
+- Docker for LocalStack
+- AWS CLI installed locally
+- Terraform installed locally
+- Clerk project with publishable key, secret key, and webhook secret
+
+### Environment variables
+
+Create a `backend/.env` file:
+
+```env
+PORT=4000
+SOFTWARE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+
+AWS_REGION=ap-southeast-1
+AWS_ENDPOINT=http://localhost.localstack.cloud:4566
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+AWS_S3_BUCKET=file-uploader-bucket
+AWS_S3_THUMBNAIL_BUCKET=thumbnail-uploader-bucket
+
+DATABASE_URL=postgresql://postgres:password@localhost:5432/file_uploader
+```
+
+Create a `frontend/.env` file:
+
+```env
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
+
+### Start PostgreSQL
+
+Run PostgreSQL locally and make sure the database in `DATABASE_URL` exists before starting the backend.
+
 ### Start LocalStack
-
-This project is configured for LocalStack via `AWS_ENDPOINT=http://localhost:4566` and `forcePathStyle: true` in the backend S3 client.
-
-Make sure LocalStack is running and the configured bucket exists:
 
 ```bash
 docker run --rm -it -p 4566:4566 localstack/localstack
 ```
 
-Then create the bucket if needed:
+### Build and package the Lambda
 
 ```bash
-aws --endpoint-url=http://localhost:4566 s3 mb s3://file-uploader-bucket
+cd lambda/resizer
+npm install
+npm run build
+npm run package
 ```
 
-## AWS S3 bucket configuration
+This produces `lambda/lambda_function.zip`, which Terraform expects.
 
-If you are using a real AWS S3 bucket (instead of LocalStack), these settings match the current implementation (private bucket + presigned access).
-
-### Block Public Access
-
-Enable all options:
-- Block public ACLs
-- Ignore public ACLs
-- Block public bucket policies
-- Restrict public access
-
-This results in no public access to the bucket.
-
-### Object Ownership
-
-- Bucket owner enforced
-
-This disables ACLs and simplifies access control.
-
-### CORS configuration
-
-```json
-{
-	"CORSRules": [
-		{
-			"AllowedHeaders": ["*"],
-			"AllowedMethods": ["GET", "PUT"],
-			"AllowedOrigins": ["*"],
-			"ExposeHeaders": []
-		}
-	]
-}
-```
-
-### Backend install and run
+### Provision local AWS resources with Terraform
 
 ```bash
-cd file-uploader/backend
+cd infrastructure
+terraform init
+terraform apply
+```
+
+This creates:
+
+- `file-uploader-bucket`
+- `thumbnail-uploader-bucket`
+- Lambda execution role and policy
+- `image_resizer` Lambda
+- S3 bucket notification from originals bucket to Lambda
+
+### Start the backend
+
+```bash
+cd backend
 npm install
 npm run start:dev
 ```
 
-### Frontend install and run
+Backend defaults:
+
+- API: `http://localhost:4000`
+- API docs: `http://localhost:4000/docs`
+
+### Start the frontend
 
 ```bash
-cd file-uploader/frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-## Backend details
+Frontend default:
 
-### S3 integration
-The backend S3 service uses:
-- `S3Client` from `@aws-sdk/client-s3`
-- `PutObjectCommand` for server-side uploads (when used)
-- `DeleteObjectCommand` for cleanup
-- Presigned URLs via `getSignedUrl` from `@aws-sdk/s3-request-presigner`
-- `forcePathStyle: true` to support LocalStack URL style
+- App: `http://localhost:3000`
 
-The upload flow is implemented in `backend/src/file-upload/s3.service.ts`.
+## Suggested startup order
 
-### Authentication
-- `backend/src/common/guard/auth.guard.ts` verifies Clerk bearer tokens
-- Protected upload and folder routes require valid auth
-- Folder ownership and photo ownership guards protect user data
-- Backend syncs Clerk user state into the local database via webhook handling, so our app can enforce ownership and user-specific folder/photo access
+1. Start PostgreSQL
+2. Start LocalStack
+3. Build and package the Lambda
+4. Run `terraform apply` in `infrastructure/`
+5. Start the backend
+6. Start the frontend
 
-### Clerk webhook sync
-- `backend/src/auth/auth.service.ts` validates Clerk webhook signatures using `CLERK_WEBHOOK_SECRET`
-- User create/update/delete events are synchronized to the local `User` entity
-- This keeps local folder and photo ownership aligned with Clerk identity state
+## Useful development commands
 
-### File metadata
-Photo metadata is stored in PostgreSQL via TypeORM entities:
-- `Photo` entity with `s3Bucket`, `s3Key`, `fileName`, `fileSize`, `fileType`
-- `Folder` entity and relations to users
+### Frontend
 
-## Frontend details
+```bash
+npm run dev
+npm run build
+npm run test
+npm run check
+```
 
-### Main capabilities
-- Create and list folders
-- Upload photos into selected folders
-- View uploaded photos per folder
-- Delete photos
-- Full auth flow with Clerk
+### Backend
 
-### API hooks
-The frontend uses Axios and custom hooks under `frontend/src/hook/`:
-- `useCreateFolderMutation`
-- `useGetFoldersQuery`
-- `useGetPhotosQuery`
-- `useUploadPhotoMutation`
-- `useDeletePhoto`
+```bash
+npm run start:dev
+npm run build
+npm run test
+npm run test:e2e
+```
 
-### UI
-- Uses existing Tailwind + shadcn-style components
-- Routed views are built with TanStack Router in `frontend/src/routes`
+### Lambda
 
-## What was learned here
-- How to wire a modern React frontend to a NestJS backend
-- How to use Clerk for authentication and session handling
-- How to upload binary files to S3 from NestJS
-- How to use a local AWS emulator (LocalStack) for safe AWS practice
-- How to connect auth-protected operations to database-backed ownership rules
+```bash
+npm run build
+npm run package
+```
+
+## Current implementation notes
+
+- The API exposes docs through Scalar at `/docs`.
+- The frontend landing page now explains the same AWS flow that the system actually uses.
+- Thumbnail metadata is currently created optimistically after upload; the backend assumes Lambda succeeds and derives the thumbnail key from the original key.
+- TypeORM synchronization is enabled automatically outside production through `SOFTWARE_ENV`.
 
 ## Possible improvements
 
-- Add multipart uploads for large files
-- Add S3 lifecycle rules for expiration/cleanup
-- Add stronger server-side validation (file type/size) and upload retry/progress UX
+### Product and search improvements
 
-## Notes
-- This README covers the local development stack only.
-- The backend currently uses the local S3 endpoint and local Postgres by default.
-- The app is wired for AWS-style development and is a good starting point for moving to real AWS once tested locally.
+- AI auto-labeling for photos so uploaded images can be tagged by content
+- Semantic image search to find visually related photos
+- Text search across generated labels, file names, and folders
+
+### Platform improvements
+
+- Multipart upload support for larger files
+- Background retries or reconciliation if Lambda thumbnail generation fails
+- Better upload progress, status, and thumbnail-processing states in the UI
+- Real AWS deployment path with separate environments
+- Object lifecycle policies and cleanup automation
+- Better validation around file types, dimensions, and limits
+
+## Why this project is useful
+
+This repo is a practical bridge between a normal CRUD app and an AWS event-driven workflow. It covers authenticated frontend work, ownership-aware APIs, direct cloud storage uploads, event-triggered processing, and infrastructure-as-code in one project.
